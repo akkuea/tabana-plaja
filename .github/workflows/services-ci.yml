@@ -1,0 +1,160 @@
+name: Services CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/services/**'
+      - '.github/workflows/services-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/services/**'
+      - '.github/workflows/services-ci.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  typescript-checks:
+    name: TypeScript Linting & Testing
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./apps/services
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+
+    - name: Cache Bun dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.bun/install/cache
+          **/node_modules
+        key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
+
+    - name: Install dependencies
+      run: bun install
+
+    - name: TypeScript type checking
+      run: bun run type-check
+
+    - name: ESLint
+      run: bun run lint
+
+    - name: Prettier format check
+      run: bun run format:check
+
+    - name: Run tests
+      run: bun test
+
+    - name: Build TypeScript
+      run: bun run build
+
+  rust-checks:
+    name: Rust Linting & Testing
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./apps/services
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Cache Rust dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          apps/services/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Check Rust formatting
+      run: cargo fmt --check
+
+    - name: Run Clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Run Rust tests
+      run: cargo test --verbose
+
+    - name: Build Rust project
+      run: cargo build --verbose --release
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [typescript-checks, rust-checks]
+    defaults:
+      run:
+        working-directory: ./apps/services
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install dependencies
+      run: bun install
+
+    - name: Build all components
+      run: |
+        bun run build
+        cargo build --release
+
+    - name: Run integration tests
+      run: bun run test:integration
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./apps/services
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Audit npm dependencies
+      run: bun audit
+
+    - name: Audit Rust dependencies
+      run: |
+        cargo install cargo-audit
+        cargo audit 
