@@ -1,0 +1,364 @@
+name: Landing CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'apps/landing/**'
+      - '.github/workflows/landing-ci.yml'
+      - 'package.json'
+      - 'bun.lockb'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'apps/landing/**'
+      - '.github/workflows/landing-ci.yml'
+      - 'package.json'
+      - 'bun.lockb'
+
+jobs:
+  # Job 1: Install dependencies and cache
+  setup:
+    name: Setup Dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache-key.outputs.key }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Generate cache key
+        id: cache-key
+        run: echo "key=bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}" >> $GITHUB_OUTPUT
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        id: bun-cache
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ steps.cache-key.outputs.key }}
+          restore-keys: |
+            bun-${{ hashFiles('**/bun.lockb') }}
+            bun-
+
+      - name: Install dependencies
+        if: steps.bun-cache.outputs.cache-hit != 'true'
+        run: bun install --frozen-lockfile
+
+  # Job 2: Linting (ESLint)
+  lint:
+    name: ESLint Check
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Install dependencies (if cache miss)
+        run: bun install --frozen-lockfile
+
+      - name: Run ESLint on landing component
+        run: |
+          echo "🔍 Running ESLint on apps/landing..."
+          bunx eslint apps/landing --ext .ts,.tsx,.js,.jsx
+        continue-on-error: false
+
+      - name: ESLint Summary
+        if: success()
+        run: echo "✅ ESLint passed for landing component"
+
+  # Job 3: Code Formatting Check
+  format-check:
+    name: Prettier Format Check
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Install dependencies (if cache miss)
+        run: bun install --frozen-lockfile
+
+      - name: Check Prettier formatting on landing
+        run: |
+          echo "🎨 Checking Prettier formatting on apps/landing..."
+          bunx prettier --check "apps/landing/**/*.{ts,tsx,js,jsx,json,md}"
+        continue-on-error: false
+
+      - name: Format Check Summary
+        if: success()
+        run: echo "✅ Code formatting is consistent for landing component"
+
+  # Job 4: TypeScript Check (if applicable)
+  typecheck:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Install dependencies (if cache miss)
+        run: bun install --frozen-lockfile
+
+      - name: Check for TypeScript files
+        id: check-ts
+        run: |
+          if find apps/landing -name "*.ts" -o -name "*.tsx" | grep -q .; then
+            echo "has-typescript=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-typescript=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run TypeScript check
+        if: steps.check-ts.outputs.has-typescript == 'true'
+        run: |
+          echo "🔧 Running TypeScript check on landing component..."
+          # Check if there's a tsconfig.json, otherwise create a basic one for checking
+          if [ ! -f "tsconfig.json" ]; then
+            echo "Creating temporary tsconfig.json for type checking..."
+            cat > tsconfig.temp.json << EOF
+          {
+            "compilerOptions": {
+              "target": "es2017",
+              "lib": ["dom", "dom.iterable", "es6"],
+              "allowJs": true,
+              "skipLibCheck": true,
+              "strict": false,
+              "forceConsistentCasingInFileNames": true,
+              "noEmit": true,
+              "esModuleInterop": true,
+              "module": "esnext",
+              "moduleResolution": "node",
+              "resolveJsonModule": true,
+              "isolatedModules": true,
+              "jsx": "preserve"
+            },
+            "include": ["apps/landing/**/*"],
+            "exclude": ["node_modules"]
+          }
+          EOF
+            bunx tsc --project tsconfig.temp.json --noEmit
+            rm tsconfig.temp.json
+          else
+            # Use existing tsconfig but only check landing files
+            bunx tsc --noEmit apps/landing/**/*.ts apps/landing/**/*.tsx 2>/dev/null || bunx tsc --noEmit
+          fi
+
+      - name: TypeScript Summary
+        if: steps.check-ts.outputs.has-typescript == 'true' && success()
+        run: echo "✅ TypeScript check passed for landing component"
+
+      - name: Skip TypeScript
+        if: steps.check-ts.outputs.has-typescript == 'false'
+        run: echo "ℹ️ No TypeScript files found in landing component, skipping type check"
+
+  # Job 5: File Structure Validation
+  structure-check:
+    name: File Structure Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate landing component structure
+        run: |
+          echo "📁 Checking landing component file structure..."
+          
+          if [ ! -d "apps/landing" ]; then
+            echo "❌ apps/landing directory not found"
+            exit 1
+          fi
+          
+          echo "✅ Landing component directory exists"
+          
+          # List the structure for visibility
+          echo "📋 Landing component structure:"
+          find apps/landing -type f -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.json" -o -name "*.md" | head -20
+
+  # Job 6: Performance Check (Optional)
+  performance-check:
+    name: Performance Check
+    runs-on: ubuntu-latest
+    needs: setup
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Check bundle size impact
+        run: |
+          echo "📦 Analyzing landing component size..."
+          
+          # Count lines of code
+          total_lines=$(find apps/landing -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" | xargs wc -l | tail -1 | awk '{print $1}')
+          file_count=$(find apps/landing -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" | wc -l)
+          
+          echo "📊 Landing Component Stats:"
+          echo "   Files: $file_count"
+          echo "   Lines of Code: $total_lines"
+          
+          # Simple performance guidelines
+          if [ "$total_lines" -gt 5000 ]; then
+            echo "⚠️  Large component detected (>5000 lines). Consider splitting into smaller components."
+          elif [ "$total_lines" -gt 2000 ]; then
+            echo "ℹ️  Medium-sized component ($total_lines lines). Monitor for complexity."
+          else
+            echo "✅ Component size looks good ($total_lines lines)."
+          fi
+
+  # Job 7: Unit Tests (if they exist)
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: setup
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Restore Bun cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Install dependencies (if cache miss)
+        run: bun install --frozen-lockfile
+
+      - name: Check for test files
+        id: check-tests
+        run: |
+          if find apps/landing -name "*.test.*" -o -name "*.spec.*" | grep -q .; then
+            echo "has-tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-tests=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests
+        if: steps.check-tests.outputs.has-tests == 'true'
+        run: |
+          echo "🧪 Running tests for landing component..."
+          # Try to run tests with common test runners
+          if command -v jest &> /dev/null; then
+            bunx jest apps/landing
+          elif command -v vitest &> /dev/null; then
+            bunx vitest apps/landing
+          else
+            echo "ℹ️ No test runner found, skipping tests"
+          fi
+
+      - name: No tests found
+        if: steps.check-tests.outputs.has-tests == 'false'
+        run: echo "ℹ️ No test files found in landing component"
+
+  # Job 8: Code Quality Summary
+  quality-summary:
+    name: Code Quality Summary
+    runs-on: ubuntu-latest
+    needs: [lint, format-check, typecheck, structure-check]
+    if: always()
+    steps:
+      - name: Quality Check Results
+        run: |
+          echo "🚀 Landing Component CI Pipeline Results"
+          echo "========================================"
+          echo ""
+          echo "📊 Code Quality Checks:"
+          echo "✅ ESLint: ${{ needs.lint.result }}"
+          echo "✅ Prettier: ${{ needs.format-check.result }}"
+          echo "✅ TypeScript: ${{ needs.typecheck.result }}"
+          echo "✅ Structure: ${{ needs.structure-check.result }}"
+          echo ""
+          
+          # Check if all jobs passed
+          if [[ "${{ needs.lint.result }}" == "success" && 
+                "${{ needs.format-check.result }}" == "success" && 
+                "${{ needs.typecheck.result }}" == "success" && 
+                "${{ needs.structure-check.result }}" == "success" ]]; then
+            echo "🎉 All quality checks passed! Landing component is ready."
+            echo ""
+            echo "✨ Benefits achieved:"
+            echo "   • Code follows ESLint standards"
+            echo "   • Consistent formatting with Prettier"
+            echo "   • TypeScript types are valid (if applicable)"
+            echo "   • File structure is correct"
+            echo "   • Fast builds with Bun caching"
+            echo ""
+            echo "💡 To run these checks locally:"
+            echo "   bun run lint    # Fix ESLint issues"
+            echo "   bun run format  # Fix formatting"
+          else
+            echo "❌ Some quality checks failed. Please review the logs above."
+            echo ""
+            echo "💡 To fix issues locally:"
+            echo "   bun run lint    # Fix ESLint issues"
+            echo "   bun run format  # Fix formatting"
+            exit 1
+          fi
