@@ -1,0 +1,15 @@
+# Rust
+/target/
+Cargo.lock
+*.pdb
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Soroban
+test_snapshots/ 
