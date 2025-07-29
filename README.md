@@ -1,6 +1,6 @@
 # tabana plaja
 
-Welcome to this project!
+Welcome to this project! Tabana is a payment orchestrator on Stellar.
 
 ## Setup
 
@@ -62,6 +62,34 @@ prettier --write "app/**/*.test.js"
 ```
 
 See [fast-glob](https://github.com/mrmlnc/fast-glob#pattern-syntax) for more about glob syntax.
+
+## Versioning and Releases
+
+We use [changesets](https://github.com/changesets/changesets) to manage versions and changelogs across all our apps, and packages.
+
+The project follows [Semantic Versioning](https://semver.org/) (SemVer), which means each change will bump the version as:
+
+- **Patch:** small fixes (e.g., bugfixes, docs)
+- **Minor:** new features that don’t break anything
+- **Major:** breaking changes
+
+The relevant folders that the changesets applies are in the "apps/\*" folder (soroban, metrics ...).
+
+If your PR modifies any of the above, run
+
+```bash
+bunx changeset
+```
+
+Follow the prompts(pick version bump, write a short summary), and after this, a `.md` file will be created in the `.changeset/` folder.
+
+When you're ready to apply the versions and changelogs, you can run:
+
+```bash
+bunx changeset version
+```
+
+That's it! See detailed info in the [changesets docs](https://github.com/changesets/changesets).
 
 ## 🫡 Thanks to Our Contributors
 
