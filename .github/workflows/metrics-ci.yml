@@ -79,7 +79,7 @@ jobs:
 
       - name: Run ESLint
         working-directory: apps/metrics
-        run: bun run lint
+        run: bunx next lint
 
   build:
     name: Test Build
@@ -108,9 +108,19 @@ jobs:
         if: steps.bun-cache.outputs.cache-hit != 'true'
         run: bun install --frozen-lockfile
 
+      - name: Verify Next.js installation
+        working-directory: apps/metrics
+        run: |
+          echo "Checking if next binary exists:"
+          ls -la node_modules/.bin/next || echo "next binary not found"
+          echo "Checking PATH:"
+          echo $PATH
+          echo "Checking bun version:"
+          bun --version
+
       - name: Build application
         working-directory: apps/metrics
-        run: bun run build
+        run: bunx next build
 
   deploy:
     name: Deploy to Vercel
