@@ -35,12 +35,11 @@ jobs:
         run: echo "key=bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}" >> "$GITHUB_OUTPUT"
 
       - name: Cache Bun dependencies
-        uses: actions/cache@v4
         id: bun-cache
+        uses: actions/cache@v4
         with:
           path: |
             ~/.bun/install/cache
-            node_modules
           key: ${{ steps.cache-key.outputs.key }}
           restore-keys: |
             bun-
@@ -64,9 +63,7 @@ jobs:
       - name: Cache Bun dependencies
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
+          path: ~/.bun/install/cache
           key: ${{ needs.setup.outputs.cache-key }}
           restore-keys: |
             bun-
@@ -91,16 +88,16 @@ jobs:
           bun-version: latest
 
       - name: Cache Bun dependencies
+        id: bun-cache
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
+          path: ~/.bun/install/cache
           key: ${{ needs.setup.outputs.cache-key }}
           restore-keys: |
             bun-
 
       - name: Install dependencies
+        working-directory: apps/metrics
         if: steps.bun-cache.outputs.cache-hit != 'true'
         run: bun install --frozen-lockfile
 
@@ -124,9 +121,7 @@ jobs:
       - name: Cache Bun dependencies
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
+          path: ~/.bun/install/cache
           key: ${{ needs.setup.outputs.cache-key }}
           restore-keys: |
             bun-
