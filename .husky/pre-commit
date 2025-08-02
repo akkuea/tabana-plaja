@@ -1,3 +1,38 @@
-bunx lint-staged
+#!/bin/sh
+set -e
 
-git update-index --again
+echo "Running Pre-Commit Hook..."
+
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+echo "Current branch: $CURRENT_BRANCH"
+
+if [ "$CURRENT_BRANCH" = "main" ]; then
+  echo "You are on the 'main' branch. Please commit to a feature or dev branch instead."
+  exit 1
+fi
+
+CHANGED_DIRS=$(git diff --cached --name-only --diff-filter=ACM | cut -d '/' -f1,2 | sort -u)
+echo "Changed directories: $CHANGED_DIRS"
+
+for DIR in $CHANGED_DIRS; do
+  if [ -f "$DIR/package.json" ]; then
+    echo "Building $DIR..."
+    bun run --cwd "$DIR" build || { echo "Build failed in $DIR. Commit aborted."; exit 1; }
+  fi
+done
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|ts|tsx|jsx|json|css|scss|md)$' || true)
+echo "Staged files for formatting: $STAGED_FILES"
+
+if [ -z "$STAGED_FILES" ]; then
+  echo "No relevant staged files to lint or format. Skipping lint-staged."
+else
+  echo "Running Prettier & ESLint on staged files..."
+  bunx lint-staged || { echo "lint-staged failed. Commit aborted."; exit 1; }
+
+  echo "Restaging formatted files..."
+  echo "$STAGED_FILES" | xargs git add
+fi
+
+echo "Pre-commit checks passed."
+exit 0

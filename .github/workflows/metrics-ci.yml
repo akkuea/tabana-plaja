@@ -7,7 +7,7 @@ on:
       - 'apps/metrics/**'
       - '.github/workflows/metrics-ci.yml'
       - 'apps/metrics/package.json'
-      - 'apps/metrics/bun.lock'
+      - 'apps/metrics/bun.lockb'
 
   pull_request:
     branches: [main, develop]
@@ -15,7 +15,7 @@ on:
       - 'apps/metrics/**'
       - '.github/workflows/metrics-ci.yml'
       - 'apps/metrics/package.json'
-      - 'apps/metrics/bun.lock'
+      - 'apps/metrics/bun.lockb'
 
 jobs:
   setup:
@@ -33,7 +33,7 @@ jobs:
 
       - name: Generate cache key
         id: cache-key
-        run: echo "key=bun-${{ hashFiles('apps/metrics/bun.lock', 'apps/metrics/package.json') }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=bun-${{ hashFiles('apps/metrics/bun.lockb', 'apps/metrics/package.json') }}" >> "$GITHUB_OUTPUT"
 
       - name: Cache Bun dependencies
         id: bun-cache
@@ -46,6 +46,7 @@ jobs:
             bun-
 
       - name: Install dependencies
+
         if: steps.bun-cache.outputs.cache-hit != 'true'
         working-directory: apps/metrics
         run: bun install --frozen-lockfile
@@ -73,7 +74,6 @@ jobs:
             bun-
 
       - name: Install dependencies
-        if: steps.bun-cache.outputs.cache-hit != 'true'
         working-directory: apps/metrics
         run: bun install --frozen-lockfile
 
@@ -104,8 +104,8 @@ jobs:
             bun-
 
       - name: Install dependencies
+
         working-directory: apps/metrics
-        if: steps.bun-cache.outputs.cache-hit != 'true'
         run: bun install --frozen-lockfile
 
       - name: Verify Next.js installation
@@ -146,8 +146,8 @@ jobs:
             bun-
 
       - name: Install dependencies
+
         working-directory: apps/metrics
-        if: steps.bun-cache.outputs.cache-hit != 'true'
         run: bun install --frozen-lockfile
 
       - name: Validate Vercel secrets
